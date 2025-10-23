@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { authAPI, User as ApiUser, SignupData, SigninData } from '../services/api';
 
 interface User {
   id: string;
@@ -21,42 +20,48 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Преобразование пользователя из API в формат приложения
-const transformApiUser = (apiUser: ApiUser): User => ({
-  id: apiUser.id.toString(),
-  email: apiUser.email,
-  firstName: apiUser.firstName || '',
-  lastName: apiUser.lastName || ''
-});
+// Static credentials from environment variables
+const TEST_USER_EMAIL = process.env.REACT_APP_TEST_USER_EMAIL || 'test@test.com';
+const TEST_USER_PASSWORD = process.env.REACT_APP_TEST_USER_PASSWORD || '12345';
+const TEST_USER_FIRSTNAME = process.env.REACT_APP_TEST_USER_FIRSTNAME || 'Test';
+const TEST_USER_LASTNAME = process.env.REACT_APP_TEST_USER_LASTNAME || 'User';
+
+// Local storage key for user session
+const USER_SESSION_KEY = 'authenticated_user';
+
+// Helper to simulate loading delay
+const simulateLoading = (minMs: number = 2000, maxMs: number = 4000): Promise<void> => {
+  const delay = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+  return new Promise(resolve => setTimeout(resolve, delay));
+};
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Check for existing session on mount
   useEffect(() => {
     const initAuth = async () => {
       setLoading(true);
       setError(null);
       
       try {
-        if (authAPI.isAuthenticated()) {
-          const profileData = await authAPI.getProfile();
-          const transformedUser = transformApiUser(profileData.user);
-          setUser(transformedUser);
+        // Check localStorage for existing session
+        const storedUser = localStorage.getItem(USER_SESSION_KEY);
+        if (storedUser) {
+          const parsedUser = JSON.parse(storedUser);
+          // Restore any valid user session
+          if (parsedUser.email && parsedUser.id) {
+            setUser(parsedUser);
+          } else {
+            // Clear invalid session
+            localStorage.removeItem(USER_SESSION_KEY);
+          }
         }
       } catch (err) {
-        
-        // Проверяем тип ошибки для лучшей обработки
-        if (err instanceof Error && err.message.includes('Failed to fetch')) {
-          setError('Backend connection failed. Some features may be limited.');
-        } else {
-          setError('Authentication failed');
-        }
-        
-        // Если токен невалиден, очищаем его
-        authAPI.signout();
-        setUser(null);
+        console.error('Session restoration failed:', err);
+        localStorage.removeItem(USER_SESSION_KEY);
       } finally {
         setLoading(false);
       }
@@ -70,14 +75,30 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setError(null);
     
     try {
-      const credentials: SigninData = { email, password };
-      const response = await authAPI.signin(credentials);
-      
-      const transformedUser = transformApiUser(response.user);
-      
-      setUser(transformedUser);
-      setLoading(false);
-      return true;
+      // Check if credentials match the test user
+      if (email === TEST_USER_EMAIL && password === TEST_USER_PASSWORD) {
+        // Simulate loading (2-4 seconds)
+        await simulateLoading(2000, 4000);
+        
+        const authenticatedUser: User = {
+          id: '1',
+          email: TEST_USER_EMAIL,
+          firstName: TEST_USER_FIRSTNAME,
+          lastName: TEST_USER_LASTNAME
+        };
+        
+        // Save to localStorage
+        localStorage.setItem(USER_SESSION_KEY, JSON.stringify(authenticatedUser));
+        setUser(authenticatedUser);
+        setLoading(false);
+        return true;
+      } else {
+        // Simulate loading for failed attempts too (to prevent timing attacks)
+        await simulateLoading(1000, 2000);
+        setError('Invalid email or password');
+        setLoading(false);
+        return false;
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
       setLoading(false);
@@ -90,17 +111,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setError(null);
     
     try {
-      const signupData: SignupData = {
+      // Simulate loading (2-4 seconds)
+      await simulateLoading(2000, 4000);
+      
+      // Prevent registration with test user email (already exists)
+      if (userData.email === TEST_USER_EMAIL) {
+        setError('This email is already registered. Please sign in or use a different email.');
+        setLoading(false);
+        return false;
+      }
+      
+      // Allow registration for any other email
+      // Generate a unique ID based on timestamp
+      const newUser: User = {
+        id: Date.now().toString(),
         email: userData.email,
-        password: userData.password,
         firstName: userData.firstName,
         lastName: userData.lastName
       };
       
-      const response = await authAPI.signup(signupData);
-      const transformedUser = transformApiUser(response.user);
-      
-      setUser(transformedUser);
+      // Save to localStorage
+      localStorage.setItem(USER_SESSION_KEY, JSON.stringify(newUser));
+      setUser(newUser);
       setLoading(false);
       return true;
     } catch (err) {
@@ -111,7 +143,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const logout = () => {
-    authAPI.signout();
+    localStorage.removeItem(USER_SESSION_KEY);
     setUser(null);
     setError(null);
   };
