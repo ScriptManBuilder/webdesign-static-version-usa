@@ -33,11 +33,6 @@ export const getProductImages = (productId: number): string[] => {
 
 // Helper function to get course video preview
 export const getProductVideo = (productId: number): string | undefined => {
-  // Debug информация
-  if (process.env.REACT_APP_DEBUG_VIDEOS === 'true') {
-    console.log('🎬 Getting video for product:', productId);
-    console.log('🔧 Environment:', process.env.NODE_ENV);
-  }
   
   if (productId === 1) {
     return `/videos/Web Design with WordPress Everything from Beginning to End Derri (1).mp4`;
