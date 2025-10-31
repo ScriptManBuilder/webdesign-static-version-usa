@@ -7,9 +7,11 @@ import { CartProvider } from './contexts/CartContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { useServiceWorker } from './hooks/useServiceWorker';
 import { useAuth } from './contexts/AuthContext';
+import { useInitialLoader } from './hooks/useInitialLoader';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import LoadingFallback from './components/LazyLoading';
+import InitialLoader from './components/InitialLoader';
 
 // Основные компоненты с ленивой загрузкой
 const LazyHome = React.lazy(() => import('./pages/Home'));
@@ -47,6 +49,12 @@ function App() {
 // Компонент для обработки loading состояния аутентификации
 function AppContent() {
   const { loading } = useAuth();
+  const { isInitialLoading, loadingProgress } = useInitialLoader();
+
+  // Показываем инициальный лоадер при первом запуске сайта
+  if (isInitialLoading) {
+    return <InitialLoader progress={loadingProgress} />;
+  }
 
   // Показываем загрузочный экран пока проверяется аутентификация
   if (loading) {
